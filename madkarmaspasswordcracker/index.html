@@ -1,0 +1,376 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Password Cracker Prank / Demo</title>
+<style>
+  :root{
+    --bg:#0b1020; --panel:#071025; --muted:#9fb0c8; --accent:#76ffeb; --danger:#ff6b6b;
+    --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, "Roboto Mono", monospace;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;height:100vh;background:linear-gradient(180deg,#020612 0%,var(--bg) 100%);color:#cfeffd;font-family:var(--mono);display:flex;align-items:stretch}
+  .container{display:grid;grid-template-columns:360px 1fr;gap:16px;padding:18px;width:100%}
+  .panel{background:linear-gradient(180deg, rgba(255,255,255,0.02), rgba(255,255,255,0.01));padding:14px;border-radius:10px;border:1px solid rgba(255,255,255,0.03)}
+  h1{font-size:18px;margin:0 0 8px;color:var(--accent)}
+  label{display:block;font-size:12px;margin:8px 0 6px;color:var(--muted)}
+  input[type="text"], input[type="number"], select, textarea{
+    width:100%;padding:8px;border-radius:6px;border:1px solid rgba(255,255,255,0.04);background:transparent;color:inherit;font-family:var(--mono)
+  }
+  .row{display:flex;gap:8px;align-items:center}
+  button{background:#021826;border:1px solid rgba(255,255,255,0.03);color:var(--accent);padding:8px 10px;border-radius:8px;cursor:pointer;font-family:var(--mono)}
+  button.ghost{background:transparent;color:var(--muted);border:1px dashed rgba(255,255,255,0.02)}
+  .small{font-size:12px;color:var(--muted)}
+  #console{background:#000;border-radius:8px;padding:12px;height:78vh;overflow:auto;border:1px solid rgba(255,255,255,0.02);box-shadow:inset 0 6px 30px rgba(0,0,0,0.7)}
+  pre.line{margin:0;color:#9ef0d9;font-size:13px;line-height:1.25;white-space:pre-wrap}
+  .statusbar{display:flex;gap:12px;align-items:center;margin-top:8px}
+  .progress{flex:1;height:12px;background:rgba(255,255,255,0.03);border-radius:8px;overflow:hidden}
+  .progress > i{display:block;height:100%;background:linear-gradient(90deg,#00ffd5,#1ea8ff);width:0%}
+  .meta{min-width:220px;font-size:13px;color:var(--muted);text-align:right}
+  .found{color:#b8ff9e}
+  .danger{color:var(--danger)}
+  .controls-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .footer{margin-top:10px;font-size:12px;color:var(--muted)}
+  .toggle{display:inline-flex;align-items:center;gap:6px}
+  .kbd{background:rgba(255,255,255,0.02);padding:4px 6px;border-radius:6px;font-family:var(--mono);font-size:12px;color:var(--accent)}
+  .cursor{display:inline-block;width:8px;height:18px;background:var(--accent);margin-left:6px;animation:blink 1s steps(2) infinite}
+  @keyframes blink{50%{opacity:0}}
+</style>
+</head>
+<body>
+<div class="container">
+  <aside class="panel">
+    <h1>Fake Password Cracker</h1>
+    <div class="small">Entertainment / demonstration only — no real cracking performed.</div>
+
+    <!-- Target label modified: removed parentheses and added [ip address] -->
+    <label>Target [ip address]</label>
+    <input id="target" type="text" placeholder="e.g. 192.168.1.100" value="target_user">
+
+    <!-- Target password label: removed optional bracketed note -->
+    <label>Target password</label>
+    <input id="targetPass" type="text" placeholder="Leave blank to auto-generate 'found' password">
+
+    <label>Mode</label>
+    <select id="mode">
+      <option value="brute">Brute-force (simulated)</option>
+      <option value="dict">Dictionary (simulated)</option>
+      <option value="hybrid">Hybrid (dict + brute)</option>
+    </select>
+
+    <div class="controls-grid">
+      <div>
+        <label>Speed</label>
+        <select id="speed">
+          <option value="fast">Fast</option>
+          <option value="normal" selected>Normal</option>
+          <option value="slow">Slow</option>
+        </select>
+      </div>
+      <div>
+        <label>Charset Complexity</label>
+        <select id="charset">
+          <option value="low">Low (letters)</option>
+          <option value="med" selected>Medium (letters+digits)</option>
+          <option value="high">High (letters+digits+symbols)</option>
+        </select>
+      </div>
+    </div>
+
+    <label>Dictionary size (simulated)</label>
+    <input id="dictSize" type="number" min="10" max="200000" value="5000">
+
+    <label>Simulation options</label>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <label class="toggle"><input type="checkbox" id="showCandidates" checked> Show pass candidates</label>
+      <label class="toggle"><input type="checkbox" id="soundToggle"> Sound</label>
+      <label class="toggle"><input type="checkbox" id="cursorToggle" checked> Blinking cursor</label>
+    </div>
+
+    <!-- Removed the Start / Stop / Clear buttons per your request.
+         Instead we provide an "Offline command" input where typing
+         'start' triggers the offline attack and 'stop' stops it. -->
+    <label style="margin-top:12px">Offline command</label>
+    <input id="offlineCmd" type="text" placeholder="Type 'start' to begin, 'stop' to stop">
+
+    <!-- Removed footer tip as requested -->
+  </aside>
+
+  <main class="panel">
+    <div id="console" aria-live="polite" role="log">
+      <pre class="line">[system] Ready. Configure options and type 'start' in Offline command.</pre>
+    </div>
+
+    <div class="statusbar" style="margin-top:10px">
+      <div class="progress" title="Progress">
+        <i id="progressBar"></i>
+      </div>
+      <div class="meta" id="metaInfo">
+        <div><span class="small">Status:</span> <span id="statusText">Idle</span></div>
+        <div><span class="small">Elapsed:</span> <span id="elapsed">00:00</span></div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  // Utilities
+  const $ = id => document.getElementById(id);
+  const consoleEl = $('console');
+  const progressBar = $('progressBar');
+  const statusText = $('statusText');
+  const elapsedEl = $('elapsed');
+
+  let running = false;
+  let startTs = 0;
+  let tickTimer = null;
+  let simulateTimer = null;
+  let attempts = 0;
+  let totalAttempts = 0;
+  let found = false;
+
+  const beep = (f=600,d=60) => {
+    if (!window.AudioContext) return;
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine';
+      o.frequency.value = f;
+      g.gain.value = 0.02;
+      o.connect(g); g.connect(ctx.destination);
+      o.start();
+      setTimeout(()=>{ o.stop(); ctx.close().catch(()=>{}); }, d);
+    } catch(e){}
+  };
+
+  function logLine(text, cls){
+    const p = document.createElement('pre');
+    p.className = 'line';
+    if (cls) p.classList.add(cls);
+    p.textContent = text;
+    consoleEl.appendChild(p);
+    consoleEl.scrollTop = consoleEl.scrollHeight;
+  }
+
+  function resetConsole(){
+    consoleEl.innerHTML = '';
+    logLine('[system] Ready. Configure options and type \'start\' in Offline command.');
+  }
+
+  function formatTime(s){
+    const mm = String(Math.floor(s/60)).padStart(2,'0');
+    const ss = String(Math.floor(s%60)).padStart(2,'0');
+    return `${mm}:${ss}`;
+  }
+
+  function pickCharset(kind){
+    if (kind === 'low') return 'abcdefghijklmnopqrstuvwxyz';
+    if (kind === 'med') return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+    return 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()-_+=<>?';
+  }
+
+  function randomCandidate(charset, length){
+    let out = '';
+    for (let i=0;i<length;i++) out += charset[Math.floor(Math.random()*charset.length)];
+    return out;
+  }
+
+  // Stop routine (shared)
+  function stopSimulation(byUser = true){
+    if (!running) {
+      // still log that we received stop request
+      if (byUser) logLine('[system] Stop command received but simulation was not running.', 'small');
+      statusText.innerHTML = '<span class="danger">Stopped</span>';
+      return;
+    }
+    running = false;
+    clearInterval(simulateTimer); simulateTimer = null;
+    clearInterval(tickTimer); tickTimer = null;
+    statusText.innerHTML = '<span class="danger">Stopped</span>';
+    logLine('[system] Simulation stopped by user.', 'danger');
+  }
+
+  // Main simulation routine
+  function startSimulation(){
+    if (running) return;
+    running = true;
+    found = false;
+    attempts = 0;
+    startTs = Date.now();
+    statusText.textContent = 'Running';
+    resetConsole();
+
+    const target = $('target').value.trim() || 'target';
+    const providedPass = $('targetPass').value;
+    const mode = $('mode').value;
+    const speed = $('speed').value;
+    const charsetKind = $('charset').value;
+    const dictSize = Math.max(10, Math.min(200000, parseInt($('dictSize').value || '5000')));
+    const showCandidates = $('showCandidates').checked;
+    const sound = $('soundToggle').checked;
+    const cursor = $('cursorToggle').checked;
+
+    // determine pace factors
+    const speedMap = { fast: 1, normal: 1.8, slow: 3.8 };
+    const baseDelay = 20 * speedMap[speed]; // ms between candidate logs
+    const burst = { fast: 20, normal: 12, slow: 6 }[speed]; // how many attempts per "tick" visually
+
+    // Fake totalAttempts calculation (for UI only)
+    if (mode === 'dict') {
+      totalAttempts = dictSize;
+    } else if (mode === 'brute') {
+      // small harmless estimate: pretend to try 1e6..1e9 depending on charset
+      const charsetSize = {low:26,med:62,high:90}[charsetKind];
+      totalAttempts = Math.max(1000, Math.min(1e9, Math.floor(1e5 * (charsetSize/26) * (dictSize/5000))));
+    } else {
+      totalAttempts = Math.floor(dictSize + 1e5 * ( (charsetKind==='low'?1:charsetKind==='med'?2:4) ));
+    }
+
+    // If user provided a password, set "targetPassword" to that so simulation finds it
+    const targetPassword = providedPass || null;
+
+    // Seed some header logs
+    logLine(`[session] Target: ${target} | Mode: ${mode} | Charset: ${charsetKind} | Speed: ${speed}`);
+    logLine(`[session] Starting simulation — total attempts (simulated): ${totalAttempts.toLocaleString()}`);
+    if (cursor) logLine('[session] Blinking cursor enabled');
+
+    // Start elapsed timer
+    tickTimer = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTs)/1000);
+      elapsedEl.textContent = formatTime(elapsed);
+    }, 500);
+
+    // Main visual simulation loop
+    const cs = pickCharset(charsetKind);
+    let candidateLen = Math.max(4, Math.floor(6 * (cursor ? 1 : 1)));
+    let progressPercent = 0;
+
+    simulateTimer = setInterval(() => {
+      if (!running) return;
+      // simulate a burst of attempts
+      for (let b=0;b<burst && attempts < totalAttempts && !found; b++){
+        attempts++;
+        // generate plausible candidate: sometimes dictionary-ish, sometimes random
+        let cand;
+        if (mode === 'dict' || (mode === 'hybrid' && Math.random() < 0.6)) {
+          // pick a "dictionary" style string
+          const words = ["password","admin","welcome","qwerty","letmein","sunshine","dragon","shadow","monkey","star"];
+          cand = words[Math.floor(Math.random()*words.length)];
+          if (Math.random() < 0.5) cand += String(Math.floor(Math.random()*9999));
+          // occasionally mimic passphrase
+          if (Math.random() < 0.08) cand += "-" + words[Math.floor(Math.random()*words.length)];
+        } else {
+          // brute/random-like candidate
+          // vary length occasionally
+          if (Math.random() < 0.15) candidateLen = Math.max(4, candidateLen + (Math.random()<0.5?-1:1));
+          cand = randomCandidate(cs, candidateLen);
+        }
+
+        // display candidate
+        if (showCandidates) {
+          logLine(`[try ${attempts.toLocaleString()}] ${cand}`);
+          if (sound) beep(700, 30); // tiny click
+        } else {
+          // show sparser logs for opacity
+          if (attempts % Math.ceil(Math.max(1,totalAttempts/500)) === 0) {
+            logLine(`[try ${attempts.toLocaleString()}] ${cand}`);
+            if (sound) beep(700, 30);
+          }
+        }
+
+        // fake chance to "find" if provided or randomly near the end
+        if (targetPassword && !found) {
+          // when provided, simulate plausible time before found
+          const chance = Math.min(1, attempts / Math.max(10, totalAttempts*0.15));
+          if (Math.random() < chance*0.06) {
+            // reveal provided password as found
+            found = true;
+            announceFound(targetPassword, attempts);
+            break;
+          }
+        } else {
+          // no provided password: small chance to "find" a strong-looking password earlier or
+          // choose to find near the end (use attempts ratio)
+          const nearEndRatio = attempts / totalAttempts;
+          const prob = 0.00002 + (nearEndRatio>0.9 ? 0.002*(nearEndRatio-0.9)*10 : 0); // higher chance near end
+          if (Math.random() < prob) {
+            found = true;
+            const autoPass = cand + (Math.random()<0.5 ? "!" : String(Math.floor(Math.random()*99)));
+            announceFound(autoPass, attempts);
+            break;
+          }
+        }
+      } // end burst loop
+
+      // update progress (visual)
+      progressPercent = Math.min(99, Math.floor((attempts/totalAttempts)*100));
+      progressBar.style.width = progressPercent + '%';
+      if (attempts >= totalAttempts && !found) {
+        // simulation complete, not found
+        running = false;
+        clearInterval(simulateTimer); simulateTimer = null;
+        clearInterval(tickTimer); tickTimer = null;
+        statusText.innerHTML = '<span class="danger">Finished - not found</span>';
+        progressBar.style.width = '100%';
+        logLine(`[result] Completed ${attempts.toLocaleString()} attempts. Password not found (simulated).`, 'danger');
+        return;
+      }
+    }, Math.max(16, baseDelay));
+  } // startSimulation
+
+  function announceFound(password, attemptsCount){
+    // Emphasize found result with a small dramatic delay
+    logLine('[match] Candidate accepted — verifying...', 'found');
+    if ($('soundToggle').checked) beep(900, 150);
+    setTimeout(() => {
+      logLine(`[success] Password for ${$('target').value || 'target'} => "${password}"`, 'found');
+      statusText.innerHTML = '<span class="found">Password found</span>';
+      progressBar.style.width = '100%';
+      running = false;
+      clearInterval(simulateTimer); simulateTimer = null;
+      clearInterval(tickTimer); tickTimer = null;
+      // final stats
+      logLine(`[summary] Attempts: ${attemptsCount.toLocaleString()} | Time: ${elapsedEl.textContent}`, 'small');
+    }, 600 + Math.random()*800);
+  }
+
+  // Wire offline command input: typing "start" => startSimulation, "stop" => stopSimulation
+  const offlineCmd = $('offlineCmd');
+  offlineCmd.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const v = offlineCmd.value.trim().toLowerCase();
+      if (v === 'start') {
+        startSimulation();
+        offlineCmd.value = '';
+      } else if (v === 'stop') {
+        stopSimulation(true);
+        offlineCmd.value = '';
+      } else if (v === 'clear') {
+        // optional convenience
+        resetConsole();
+        progressBar.style.width='0%';
+        statusText.textContent='Idle';
+        elapsedEl.textContent='00:00';
+        offlineCmd.value = '';
+      } else {
+        logLine(`[system] Unknown command: ${offlineCmd.value}`, 'small');
+      }
+    }
+  });
+
+  // Also allow Enter in target/targetPass to start for convenience
+  $('target').addEventListener('keydown', (e)=> { if (e.key === 'Enter') startSimulation(); });
+  $('targetPass').addEventListener('keydown', (e)=> { if (e.key === 'Enter') startSimulation(); });
+
+  // init
+  resetConsole();
+  progressBar.style.width = '0%';
+  elapsedEl.textContent = '00:00';
+
+})();
+</script>
+</body>
+</html>
